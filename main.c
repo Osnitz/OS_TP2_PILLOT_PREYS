@@ -33,11 +33,11 @@ int main(void) {
 
     void * block2 = malloc_3is(200);
     printf("block2: %p\n", block2);
-    printf("Increased by : %ld\n", block2 - block1);
+    printf("Increased by (expected = 132) : %ld\n", block2 - block1);
 
     void * block3 = malloc_3is(300);
     printf("block3: %p\n", block3);
-    printf("Increased by : %ld\n", block3 - block2);
+    printf("Increased by (expected = 232): %ld\n", block3 - block2);
 
     return 0;
 }
