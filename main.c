@@ -21,6 +21,10 @@ void * malloc_3is(ssize_t size) {
     return new_block+1;
 }
 
+void free_3is(void * block) {
+
+
+}
 
 int main(void) {
     void * ptr = sbrk(0);
