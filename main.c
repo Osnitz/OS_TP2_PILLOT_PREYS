@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#define MAGIC_NUMBER 0x0123456789ABCDEFL
+
 typedef struct HEADER_TAG {
     struct HEADER_TAG * ptr_next;
     size_t bloc_size;
@@ -15,15 +17,47 @@ void * malloc_3is(ssize_t size) {
     }
     new_block->ptr_next = NULL;
     new_block->bloc_size = size;
-    new_block->magic_number = 0x0123456789ABCDEFL;
+    new_block->magic_number = MAGIC_NUMBER;
     long * end_magic_number = (long *)(new_block+1)+size;
-    *end_magic_number = 0x0123456789ABCDEFL;
+    *end_magic_number = MAGIC_NUMBER;
     return new_block+1;
 }
 
+HEADER * header_free_list = NULL;
+
+void displayError() {
+    printf("Memory overflow detected\n");
+}
+
 void free_3is(void * block) {
+    if (block == NULL) {
+        return;
+    }
+    HEADER * block_to_free = block - sizeof(HEADER);
+    ssize_t block_size = block_to_free->bloc_size;
+    long * end_magic_number = (long *)block+block_size;
 
+    if ((block_to_free->magic_number != MAGIC_NUMBER) || (*end_magic_number != MAGIC_NUMBER)) {
+        displayError();
+        return;
+    }
+    block_to_free->ptr_next = header_free_list;
+    header_free_list = block_to_free;
+}
 
+void print_linked_list() {
+    if (header_free_list == NULL) {
+        printf("NULL\n");
+        return;
+    }
+    HEADER* current = header_free_list;
+    printf("<%p>, %lu -> ", current, current->bloc_size);
+    current = current->ptr_next;
+    while (current != NULL) {
+        printf("<%p>, %lu -> ", current, current->bloc_size);
+        current = current->ptr_next;
+    };
+    printf("NULL\n");
 }
 
 int main(void) {
@@ -42,6 +76,11 @@ int main(void) {
     void * block3 = malloc_3is(300);
     printf("block3: %p\n", block3);
     printf("Increased by (expected = 232): %ld\n", block3 - block2);
+
+    free_3is(block1);
+    print_linked_list();
+    free_3is(block2);
+    print_linked_list();
 
     return 0;
 }
