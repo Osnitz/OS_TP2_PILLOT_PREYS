@@ -10,20 +10,38 @@ typedef struct HEADER_TAG {
     long magic_number;
 } HEADER;
 
-void * malloc_3is(ssize_t size) {
-    HEADER * new_block = sbrk(size + sizeof(HEADER) + sizeof(long));
-    if (new_block == (void*)-1) {
-        return NULL;
+HEADER * header_free_list = NULL;
+
+HEADER* find_block_of_size(ssize_t size) {
+    HEADER* current = header_free_list;
+    HEADER* found = NULL;
+    while (current != NULL) {
+        if (current->ptr_next->bloc_size == size) {
+            //printf("existant block found\n");
+            found = current->ptr_next;
+            current->ptr_next = current->ptr_next->ptr_next;
+            return found;
+        }
+        current = current->ptr_next;
     }
-    new_block->ptr_next = NULL;
-    new_block->bloc_size = size;
-    new_block->magic_number = MAGIC_NUMBER;
-    long * end_magic_number = (long *)(new_block+1)+size;
-    *end_magic_number = MAGIC_NUMBER;
+    return NULL;
+}
+void * malloc_3is(ssize_t size) {
+    HEADER * new_block = find_block_of_size(size);
+    if (new_block == NULL) {
+        new_block = sbrk(size + sizeof(HEADER) + sizeof(long));
+        if (new_block == (void*)-1) {
+            return NULL;
+        }
+        new_block->ptr_next = NULL;
+        new_block->bloc_size = size;
+        new_block->magic_number = MAGIC_NUMBER;
+        long * end_magic_number = (long *)(new_block+1)+size;
+        *end_magic_number = MAGIC_NUMBER;
+    }
+
     return new_block+1;
 }
-
-HEADER * header_free_list = NULL;
 
 void displayError() {
     printf("Memory overflow detected\n");
@@ -60,6 +78,8 @@ void print_linked_list() {
     printf("NULL\n");
 }
 
+
+
 int main(void) {
     void * ptr = sbrk(0);
     printf("Base memory : %p\n", ptr);
@@ -80,6 +100,10 @@ int main(void) {
     free_3is(block1);
     print_linked_list();
     free_3is(block2);
+    print_linked_list();
+
+    void * block4 = malloc_3is(100);
+    printf("block4: %p\n", block4);
     print_linked_list();
 
     return 0;
