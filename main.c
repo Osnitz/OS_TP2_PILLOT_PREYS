@@ -1,3 +1,6 @@
+//
+// Created by matthieu on 09/10/24.
+//
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -12,15 +15,47 @@ typedef struct HEADER_TAG {
 
 HEADER * header_free_list = NULL;
 
-HEADER* find_block_of_size(ssize_t size) {
+void split_block(HEADER* block, ssize_t wanted_size) {
+    HEADER * first_block = block;
+    HEADER* second_block= (void*)(block + 1) + wanted_size + sizeof(HEADER);
+    second_block->ptr_next = first_block->ptr_next;
+    second_block->bloc_size = first_block->bloc_size - wanted_size - sizeof(HEADER)-sizeof(long);
+    second_block->magic_number = MAGIC_NUMBER;
+    long* second_end_magic_number = (long*)(second_block+1)+second_block->bloc_size;
+    *second_end_magic_number = MAGIC_NUMBER;
+
+    first_block->bloc_size = wanted_size;
+    first_block->ptr_next = second_block;
+    long* first_end_magic_number = (long*)(first_block+1)+first_block->bloc_size;
+    *first_end_magic_number = MAGIC_NUMBER;
+}
+
+HEADER* find_block_of_size(ssize_t size)
+{
     HEADER* current = header_free_list;
     HEADER* found = NULL;
-    while (current != NULL) {
-        if (current->ptr_next->bloc_size == size) {
-            //printf("existant block found\n");
-            found = current->ptr_next;
-            current->ptr_next = current->ptr_next->ptr_next;
+
+    if (current != NULL && current->bloc_size >= size){
+        if (current->bloc_size > size){
+            split_block(current, size);
+        }
+        if (current->bloc_size == size){
+            found = current;
+            header_free_list = current->ptr_next;
             return found;
+        }
+    }
+    while (current != NULL){
+        if (current->ptr_next->bloc_size >= size){
+            //printf("existant block found\n");
+            if (current->ptr_next->bloc_size > size){
+                split_block(current->ptr_next, size);
+            }
+            if (current->ptr_next->bloc_size == size){
+                found = current->ptr_next;
+                current->ptr_next = current->ptr_next->ptr_next;
+                return found;
+            }
         }
         current = current->ptr_next;
     }
@@ -69,10 +104,10 @@ void print_linked_list() {
         return;
     }
     HEADER* current = header_free_list;
-    printf("<%p>, %lu -> ", current, current->bloc_size);
+    printf("<%p>, %lu -> ", current, current->bloc_size+sizeof(HEADER)+sizeof(long));
     current = current->ptr_next;
     while (current != NULL) {
-        printf("<%p>, %lu -> ", current, current->bloc_size);
+        printf("<%p>, %lu -> ", current, current->bloc_size+sizeof(HEADER)+sizeof(long));
         current = current->ptr_next;
     };
     printf("NULL\n");
@@ -81,29 +116,50 @@ void print_linked_list() {
 
 
 int main(void) {
+    printf("--------------- Allocation of 3 blocks ---------------\n");
     void * ptr = sbrk(0);
     printf("Base memory : %p\n", ptr);
 
     void * block1 = malloc_3is(100);
-    printf("block1: %p\n", block1);
+    printf("\nblock1: %p\n", block1);
     printf("Increased by : %ld\n", block1 - ptr);
 
 
-    void * block2 = malloc_3is(200);
-    printf("block2: %p\n", block2);
+    void * block2 = malloc_3is(50);
+    printf("\nblock2: %p\n", block2);
     printf("Increased by (expected = 132) : %ld\n", block2 - block1);
 
     void * block3 = malloc_3is(300);
-    printf("block3: %p\n", block3);
+    printf("\nblock3: %p\n", block3);
     printf("Increased by (expected = 232): %ld\n", block3 - block2);
 
+    printf("\n--------------- Free block 1, 2, 3 and clear free list ---------------\n");
     free_3is(block1);
     print_linked_list();
     free_3is(block2);
     print_linked_list();
+    free_3is(block3);
+    print_linked_list();
+    header_free_list = NULL;
 
-    void * block4 = malloc_3is(100);
-    printf("block4: %p\n", block4);
+
+    printf("\n--------------- Spliting blocks ---------------\n");
+    void * block4 = malloc_3is(200);
+    printf("\nblock4: %p\n", block4);
+    HEADER * full_block4 = block4 - sizeof(HEADER);
+    free_3is(block4);
+    print_linked_list();
+    split_block(full_block4, 100);
+    print_linked_list();
+
+    printf("\n--------------- Use freed blocks ---------------\n");
+    print_linked_list();
+    void* block5 = malloc_3is(60);
+    printf("block5: %p\n", block5);
+    print_linked_list();
+
+    void* block6 = malloc_3is(50);
+    printf("block6: %p\n", block6);
     print_linked_list();
 
     return 0;

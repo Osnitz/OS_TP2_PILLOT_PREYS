@@ -21,9 +21,6 @@ Steps:
 Another thing to take into account is how the use of printf can change what we expected because it needs the heap to work. Basically, each time we used printf, we changed the address of the top of the heap.
 
 2. Block deallocation
-
-
-
 3. Checking for buffer overflows using magic numbers
 4. Reusing a freed block (if the size is compatible)
 5. Splitting large blocks if necessary
