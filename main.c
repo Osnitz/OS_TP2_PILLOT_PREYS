@@ -15,9 +15,37 @@ typedef struct HEADER_TAG {
 
 HEADER * header_free_list = NULL;
 
+void merge_free_blocks(HEADER* block) {
+    HEADER* current = header_free_list;
+
+    if (current == NULL) {
+        header_free_list = block;
+        block->ptr_next = NULL;
+        return;
+    }
+
+    while (current->ptr_next != NULL && current->ptr_next < block) {
+        current = current->ptr_next;
+    }
+
+    if (current->ptr_next != NULL && (void*)(block + 1) + block->bloc_size == current->ptr_next) {
+        block->bloc_size += sizeof(HEADER) + current->ptr_next->bloc_size + sizeof(long);
+        block->ptr_next = current->ptr_next->ptr_next;
+    } else {
+        block->ptr_next = current->ptr_next;
+    }
+
+    if ((void*)(current + 1) + current->bloc_size == block) {
+        current->bloc_size += sizeof(HEADER) + block->bloc_size + sizeof(long);
+        current->ptr_next = block->ptr_next;
+    } else {
+        current->ptr_next = block;
+    }
+}
+
 void split_block(HEADER* block, ssize_t wanted_size) {
     HEADER * first_block = block;
-    HEADER* second_block= (void*)(block + 1) + wanted_size + sizeof(HEADER);
+    HEADER* second_block= (void*)(block + 1) + wanted_size + sizeof(HEADER);//je suis pas sûr de ça, c'est pas sizeof(long) plutôt ?
     second_block->ptr_next = first_block->ptr_next;
     second_block->bloc_size = first_block->bloc_size - wanted_size - sizeof(HEADER)-sizeof(long);
     second_block->magic_number = MAGIC_NUMBER;
@@ -61,6 +89,7 @@ HEADER* find_block_of_size(ssize_t size)
     }
     return NULL;
 }
+
 void * malloc_3is(ssize_t size) {
     HEADER * new_block = find_block_of_size(size);
     if (new_block == NULL) {
@@ -94,8 +123,8 @@ void free_3is(void * block) {
         displayError();
         return;
     }
-    block_to_free->ptr_next = header_free_list;
-    header_free_list = block_to_free;
+
+    merge_free_blocks(block_to_free);
 }
 
 void print_linked_list() {
@@ -112,7 +141,6 @@ void print_linked_list() {
     };
     printf("NULL\n");
 }
-
 
 
 int main(void) {
