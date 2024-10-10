@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #define MAGIC_NUMBER 0x0123456789ABCDEFL
 
@@ -15,7 +16,17 @@ typedef struct HEADER_TAG {
 
 HEADER * header_free_list = NULL;
 
-void merge_free_blocks(HEADER* block) {
+bool are_blocks_adjacent(void* block1_void, void* block2_void) {
+    if (block1_void == NULL || block2_void == NULL) {
+        return false;
+    }
+    HEADER* block1 = (HEADER*)block1_void - 1;
+    HEADER* block2 = (HEADER*)block2_void - 1;
+    void* end_of_block1 = (void*)(block1 + 1) + block1->bloc_size + sizeof(long);
+    return end_of_block1 == (void*)block2;
+}
+
+void insert_and_merge_free_blocks(HEADER* block) {
     HEADER* current = header_free_list;
 
     if (current == NULL) {
@@ -28,14 +39,14 @@ void merge_free_blocks(HEADER* block) {
         current = current->ptr_next;
     }
 
-    if (current->ptr_next != NULL && (void*)(block + 1) + block->bloc_size == current->ptr_next) {
+    if (current->ptr_next != NULL && are_blocks_adjacent(block + 1, current->ptr_next + 1)) {
         block->bloc_size += sizeof(HEADER) + current->ptr_next->bloc_size + sizeof(long);
         block->ptr_next = current->ptr_next->ptr_next;
     } else {
         block->ptr_next = current->ptr_next;
     }
 
-    if ((void*)(current + 1) + current->bloc_size == block) {
+    if (are_blocks_adjacent(current + 1, block + 1)) {
         current->bloc_size += sizeof(HEADER) + block->bloc_size + sizeof(long);
         current->ptr_next = block->ptr_next;
     } else {
@@ -45,7 +56,7 @@ void merge_free_blocks(HEADER* block) {
 
 void split_block(HEADER* block, ssize_t wanted_size) {
     HEADER * first_block = block;
-    HEADER* second_block= (void*)(block + 1) + wanted_size + sizeof(HEADER);//je suis pas sûr de ça, c'est pas sizeof(long) plutôt ?
+    HEADER* second_block= (void*)(block + 1) + wanted_size + sizeof(long);
     second_block->ptr_next = first_block->ptr_next;
     second_block->bloc_size = first_block->bloc_size - wanted_size - sizeof(HEADER)-sizeof(long);
     second_block->magic_number = MAGIC_NUMBER;
@@ -124,7 +135,7 @@ void free_3is(void * block) {
         return;
     }
 
-    merge_free_blocks(block_to_free);
+    insert_and_merge_free_blocks(block_to_free);
 }
 
 void print_linked_list() {
@@ -143,8 +154,10 @@ void print_linked_list() {
 }
 
 
+
+
 int main(void) {
-    printf("--------------- Allocation of 3 blocks ---------------\n");
+    /*printf("--------------- Allocation of 3 blocks ---------------\n");
     void * ptr = sbrk(0);
     printf("Base memory : %p\n", ptr);
 
@@ -189,6 +202,34 @@ int main(void) {
     void* block6 = malloc_3is(50);
     printf("block6: %p\n", block6);
     print_linked_list();
+    header_free_list = NULL;*/
+
+    printf("\n--------------- Fusion of 2 blocks ---------------\n");
+    void* block7 = malloc_3is(100);
+    void* block8 = malloc_3is(50);
+    printf("block7: %p\n", block7);
+    printf("block8: %p\n", block8);
+    void*bloc9 = malloc_3is(60);
+    printf("bloc9: %p\n", bloc9);
+    void* bloc10 = malloc_3is(70);
+    printf("bloc10: %p\n", bloc10);
+
+    /*if(are_blocks_adjacent(block7, block8))
+    {
+        printf("block7 and block8 are adjacent\n");
+    }
+    else{
+        printf("block7 and block8 are not adjacent\n");
+    }*/
+
+    free_3is(block7);
+    print_linked_list();
+    free_3is(bloc9);
+    print_linked_list(); //expected output: <block7>, 132 -> <bloc9>, 92 -> NULL
+    free_3is(bloc10);
+    print_linked_list();//<block7>, 132 -> <bloc9 + bloc10>, 194 -> NULL
+    free_3is(block8);
+    print_linked_list();//<block 7 + 8 + 9 + 10>, 408 -> NULL
 
     return 0;
 }
